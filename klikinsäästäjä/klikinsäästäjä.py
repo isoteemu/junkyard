@@ -21,7 +21,6 @@ from playwright.sync_api import Browser, sync_playwright, TimeoutError
 import requests
 
 from jinja2 import Template
-from EdgeGPT.EdgeGPT import Chatbot, ConversationStyle
 
 from sqlalchemy import Column, Integer, String, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
@@ -58,7 +57,7 @@ Generate a descriptive and unbiased news title from the news article context.
 - Article URL: {{original_url|escape}}
 - Original title: {{_title|striptags|escape}}
 
-Format response in json following this structure:
+Response MUST user the following json structure:
 ```json
 {
     'title': {title},
@@ -98,60 +97,7 @@ db_session = contextvars.ContextVar(f"{__name__}_db_session")
 
 BaseModel = declarative_base()
 
-# Monekypatch get_location_hint_from_locale to support Finnish
-from EdgeGPT.utilities import get_location_hint_from_locale as _get_location_hint_from_locale  # noqa: E402
-import EdgeGPT.request  # noqa: E402
-
-# Add support for Finnish. Enums cannot be modified, so we need to create a new one.
-class PatchedLocationHint(Enum):
-    FI = {
-        "locale": "fi-FI",
-        "LocationHint": [
-            {
-                "country": "Finland",
-                "state": "",
-                "city": "Helsinki",
-                "timezoneoffset": 2,
-                "countryConfidence": 8,
-                "Center": {
-                    "Latitude": 60.1699,
-                    "Longitude": 24.9384,
-                },
-                "RegionType": 2,
-                "SourceType": 1,
-            },
-        ],
-    }
-
-
-def _patched_get_location_hint_from_locale(locale: str) -> List[Dict]:
-    """
-    Gets the location hint from the locale.
-
-    This is a patched version of the original function to ad support for Finnish.
-    """
-    # Fi-fi -> fi-FI
-    locale = locale.replace("_", "-")
-    _region, _locale = locale.split("-", 1)
-    locale = f"{_region.lower()}-{_locale.upper()}"
-
-    # Find the location hint from the locale
-    hint = next((hint for hint in PatchedLocationHint if hint.value["locale"] == locale), None)
-    if hint is None:
-        # Fallback to original function
-        return _get_location_hint_from_locale(locale)
-
-    return hint.value["LocationHint"]
-
-
-# Replace the original function with the patched one
-EdgeGPT.request.get_location_hint_from_locale = _patched_get_location_hint_from_locale
-
-
-class Href(NamedTuple):
-    url: str
-    title: str
-
+from klikinsaastaja_ng.models import Href  # noqa: E402
 
 class HrefModel(BaseModel):
     """
@@ -250,52 +196,11 @@ def fetch_lastest_helsingin_sanomat() -> List[Href]:
     ...
 
 
-def generate_bot_prompt(article: newspaper.Article):
-    """
-    Generates a prompt for the article.
-    """
-    # Add spaces to front of every line in context
-
-    prompt = Template(instructions).render(**article.__dict__)
-
-    return prompt
 
 
-async def async_invoke_bot(prompt: str, webpage_context: str = None):
-
-    cookies = json.load(open("cookies.json", "r"))
-    cookies = [{"name": k, "value": v} for k, v in cookies.items()]
-    bot = await Chatbot.create(cookies=cookies)
-    response = await bot.ask(
-        prompt=prompt,
-        conversation_style=ConversationStyle.precise,
-        simplify_response=True,
-        locale=LOCALE,
-        webpage_context=webpage_context,
-        # no_search=False,
-        mode="gpt4-turbo",
-    )
-    logger.debug(response)
-    #print(response)
-    await bot.close()
-    return response['text']
 
 
-def query_bot_suggestion(prompt: str, webpage_context: str = None):
-    """ Run async_invoke_bot() as a synchronous function """
-    loop = asyncio.get_event_loop()
-    response = loop.run_until_complete(async_invoke_bot(prompt, webpage_context))
-    return response
-
-
-def parse_bot_response(response) -> Dict[str, Union[str, list[str]]]:
-    """
-    Parses the response from the bot.
-    """
-    # Get data from md response block
-    text = re.split(r"```json\n(.*)\n```", response, flags=re.MULTILINE | re.DOTALL)[1]
-    data = json.loads(text)
-    return data
+from klikinsaastaja_ng.utils import parse_bot_response
 
 
 def fetch_page_html(url, browser: Browser):

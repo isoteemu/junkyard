@@ -1,0 +1,27 @@
+The following news page article may contain content of interest groups or people who have a vested interest on the topic.
+Based on the context of the article, provide a list of people or groups who may have a vested interest in the topic:
+- Vested interest groups
+- Interviewed people
+- People mentioned in the article
+- People or groups who are affected by the topic
+
+Provide reasoning for the interest groups, and how they relate to the page article.
+Include a wikipedia api compatible query to find more information about the group or person.
+Write a search query to find more information about the group or person in the context of possible bias or vested interest. Detail the issue in the context of the page article. Be specific and provide as much information and context as possible from the article.
+
+Page URL: {{original_url|escape}}
+Page title: {{_title|striptags|escape}}
+
+Use the following template for your answer:
+```json
+[
+    {
+        'lang': '{languange code of the article}',
+        "name": {Group or person name},
+        "wikipedia query": {Query to find more information about the group or person},
+        "reasoning": {Reasoning for the vested interest},
+        "rag query": {Search query to find more information about the group or person and how they relate in the context of the page article},
+    },
+    ...
+]
+```
